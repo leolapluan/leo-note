@@ -160,6 +160,208 @@ Group coordinator làm việc với các consumer client để giữ thông tin 
 <img width="500" alt="image" src="https://github.com/user-attachments/assets/dec06095-f959-4d51-bd33-7c624a8e992e" />
 Hình 5.7 minh họa một scenario mà các partition giống nhau tồn tại trên ba broker khác nhau cho hai consumer group khác nhau, là kinaction_teamoffka0 và kinaction_teamsetka1. Các consumer trong mỗi group sẽ nhận một bản sao dữ liệu riêng từ các partition trên mỗi broker. Chúng không làm việc cùng nhau trừ khi thuộc cùng một group
 <img width="664" alt="image" src="https://github.com/user-attachments/assets/0b12a4f2-e49b-4509-a16b-f04b94ff3274" />
-
 1 quy tắc cần lưu ý là chỉ 1 consumer của 1 group có thể đọc 1 partition tại 1 thời điểm (mặc dù 1 partition có thể được đọc bởi nhiều consumer)
 
+Hình 5.8 nhấn mạnh consumer 1 có thể đọc từ 2 partition leader, trong khi consumer 2 chỉ có thể đọc từ partition leader còn lại. Mỗi partition chỉ được gán cho một consumer duy nhất trong cùng một consumer group. Điều này được cho là để tránh việc nhầm lẫn trong quản lý offset và phân phối dữ liệu
+
+<img width="701" alt="image" src="https://github.com/user-attachments/assets/2bbf4f0b-782c-4659-8127-fcf41d2c2ce1" />
+
+“ heartbeat.interval.ms, which determines the amount of pings to the group coordinator from consumers ” 
+Nếu heartbeat ngừng, điều này sẽ loại bỏ consumer khỏi group và kích hoạt cơ chế reblancing.
+
+## 5.3.2 Partition assignment strategy (Chiến lược assign partition)
+Range: dùng alphabetical order (phần dư sẽ dồn qua consumer đầu tiên)
+RoundRobin: Phân phối tuần tự
+Sticky và CooperativeSticky: Mình sẽ k tìm hiểu ở đây
+
+<img width="648" alt="image" src="https://github.com/user-attachments/assets/e62ea3d7-0101-4868-aec1-a9d9daff4f1a" />
+
+# 5.4 Marking our place
+# **Listing 5.4: Waiting on a Commit**  
+
+```java
+consumer.commitSync();               // ❶
+# // Any code here will wait on line before
+❶ commitSync waits for a success or fail.
+```
+
+```java
+public static void commitOffset(long offset,
+                                int partition,
+                                String topic,
+                                KafkaConsumer<String, String> consumer) {
+  OffsetAndMetadata offsetMeta = new OffsetAndMetadata(++offset, "");
+
+  Map<TopicPartition, OffsetAndMetadata> kaOffsetMap = new HashMap<>();
+  kaOffsetMap.put(new TopicPartition(topic, partition), offsetMeta);
+
+  consumer.commitAsync(kaOffsetMap, (map, e) -> {     // ❶
+    if (e != null) {
+      for (TopicPartition key : map.keySet()) {
+        log.info("kinaction_error: offset {}", map.get(key).offset());
+      }
+    } else {
+      for (TopicPartition key : map.keySet()) {
+        log.info("kinaction_info: offset {}", map.get(key).offset());
+      }
+    }
+  });
+}
+❶ A lambda that creates an OffsetCommitCallback instance”
+```
+
+# 5.5 Compacted topic
+“Kafka compacts the partition log in a **background process**, and records with the same key might be removed except for the last one”
+Nếu requirement không quan trọng lịch sử của dữ liệu, chỉ quan tâm trạng thái mới nhất. 
+Điều khiến các consumer dễ gặp lỗi nhất khi đọc từ một compacted topic là chúng vẫn có thể nhận được nhiều bản ghi cho cùng một key. Làm sao điều này có thể xảy ra? Vì quá trình compaction được thực hiện trên các tệp log lưu trữ trên đĩa, nên compaction có thể không nhìn thấy tất cả các thông điệp đang nằm trong bộ nhớ khi thực hiện compact.
+
+Trong trường hợp có nhiều value cho 1 key thì client sẽ xử lý, lấy cái mới nhất là oke con dê =))
+
+# 5.6 Coding time
+## Listing 5.6 Earliest offset
+```java
+Properties kaProperties = new Properties();
+kaProperties.put("group.id", UUID.randomUUID().toString());        ❶
+kaProperties.put("auto.offset.reset", "earliest");     ❷
+❶ Creates a group ID for which Kafka does not have a stored offset
+❷ Uses the earliest offset retained in our logs
+```
+## **Listing 5.7: Latest Offset Configuration**  
+
+```java
+Properties kaProperties = new Properties();
+kaProperties.put("group.id", 
+                 UUID.randomUUID().toString());    // ❶
+kaProperties.put("auto.offset.reset", "latest");   // ❷
+❶ Creates a group ID for which Kafka does not have a stored offset
+❷ Uses the latest record offset
+```
+## **Listing 5.8: Seeking to an Offset by Timestamps**  
+
+```java
+...
+Map<TopicPartition, OffsetAndTimestamp> kaOffsetMap = 
+    consumer.offsetsForTimes(timeStampMapper);   // ❶
+...
+// We need to use the map we get
+consumer.seek(partitionOne, 
+              kaOffsetMap.get(partitionOne).offset());   // ❷
+❶ Finds the first offset greater or equal to that timeStampMapper
+
+❷ Seeks to the first offset provided in kaOffsetMap
+```
+## **Listing 5.9: Audit Consumer Logic**
+
+```java
+// Disable auto commit
+kaProperties.put("enable.auto.commit", "false");   // ❶
+
+try (KafkaConsumer<String, String> consumer = 
+        new KafkaConsumer<>(kaProperties)) {
+    
+    // Subscribe to the topic
+    consumer.subscribe(List.of("kinaction_audit"));
+
+    while (keepConsuming) {
+        // Poll records from Kafka
+        var records = consumer.poll(Duration.ofMillis(250));
+        for (ConsumerRecord<String, String> record : records) {
+            // Audit record process logic
+            // ...
+
+            // Create OffsetAndMetadata for the next offset
+            OffsetAndMetadata offsetMeta = 
+                new OffsetAndMetadata(++record.offset(), "");   // ❷
+
+            // Create map to store offsets for topic and partition
+            Map<TopicPartition, OffsetAndMetadata> kaOffsetMap = 
+                new HashMap<>();
+            kaOffsetMap.put(
+                new TopicPartition("kinaction_audit", record.partition()), 
+                offsetMeta);   // ❸
+
+            // Commit offsets synchronously
+            consumer.commitSync(kaOffsetMap);   // ❹
+        }
+    }
+}
+❶ Sets autocommit to false
+❷ Adding a record to the current offset determines the next offset to read.
+❸ Allows for a topic and partition key to be related to a specific offset
+❹ Commits the offsets
+```
+## **Listing 5.10: Alert Trending Consumer**
+
+```java
+// Enable auto-commit
+kaProperties.put("enable.auto.commit", "true");     // ❶
+
+// Configure key deserializer
+kaProperties.put("key.deserializer",
+  AlertKeySerde.class.getName());                   // ❷
+
+// Configure value deserializer
+kaProperties.put("value.deserializer",
+  "org.apache.kafka.common.serialization.StringDeserializer");
+
+// Create KafkaConsumer instance
+KafkaConsumer<Alert, String> consumer =
+    new KafkaConsumer<Alert, String>(kaProperties);
+
+// Subscribe to the topic
+consumer.subscribe(List.of("kinaction_alerttrend"));
+
+while (true) {
+    // Poll for records
+    ConsumerRecords<Alert, String> records =
+        consumer.poll(Duration.ofMillis(250));
+
+    for (ConsumerRecord<Alert, String> record : records) {
+        // Process each alert record
+        // ...
+    }
+}
+❶ Uses autocommit as lost messages are not an issue
+❷ AlertKeySerde key deserializer
+```
+
+## 5.11 Alert consumer
+```java
+kaProperties.put("enable.auto.commit", "false");
+ 
+KafkaConsumer<Alert, String> consumer =
+  new KafkaConsumer<Alert, String>(kaProperties);
+TopicPartition partitionZero =
+  new TopicPartition("kinaction_alert", 0);             ❶
+consumer.assign(List.of(partitionZero));                ❷
+ 
+while (true) {
+    ConsumerRecords<Alert, String> records =
+      consumer.poll(Duration.ofMillis(250));
+    for (ConsumerRecord<Alert, String> record : records) {
+        // ...
+        commitOffset(record.offset(),
+          record.partition(), topicName, consumer);     ❸
+    }
+}
+ 
+...
+public static void commitOffset(long offset,int part, String topic,
+  KafkaConsumer<Alert, String> consumer) {
+    OffsetAndMetadata offsetMeta = new OffsetAndMetadata(++offset, "");
+ 
+    Map<TopicPartition, OffsetAndMetadata> kaOffsetMap =
+      new HashMap<TopicPartition, OffsetAndMetadata>();
+    kaOffsetMap.put(new TopicPartition(topic, part), offsetMeta);
+ 
+    OffsetCommitCallback callback = new OffsetCommitCallback() {
+    ...
+    };
+    consumer.commitAsync(kaOffsetMap, callback);        ❹
+}
+❶ Uses TopicPartition for critical messages
+
+❷ Consumer assigns itself the partition rather than subscribing to the topic
+❸ Commits each record asynchronously
+❹ The asynchronous commit uses the kaOffsetMap and callback arguments.
+```
