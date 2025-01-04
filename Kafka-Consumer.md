@@ -77,19 +77,19 @@ Consumer trong Kafka có lợi thế đặc biệt: **kiểm soát tốc độ t
 ```
 ## 5.1.2 Hiểu rõ về Offset trong Kafka
 ![image.png](https://images.viblo.asia/3bfd0df4-1b6b-45a5-b4d8-67f49a4aebb0.png)
-## 🔢 **Offset và cách hoạt động**  
+### 🔢 **Offset và cách hoạt động**  
 - **Offset** là chỉ mục xác định vị trí thông điệp trong log.  
 - Offset **luôn tăng dần** và không tái sử dụng.  
 - Mỗi partition có chuỗi offset riêng, giảm nguy cơ vượt giới hạn kiểu dữ liệu.
 
 ---
-## 📌 **auto.offset.reset và cách cấu hình**  
+### 📌 **auto.offset.reset và cách cấu hình**  
 - **Mặc định**: `auto.offset.reset = latest`. Chỉ nhận các thông điệp mới sau khi consumer khởi động.  
 - **Chế độ đọc từ đầu**: Dùng flag `--from-beginning` để thiết lập `auto.offset.reset = earliest`, cho phép đọc toàn bộ dữ liệu, kể cả thông điệp cũ.
 
 ---
 
-## 🖼 **Phân bổ partition và leader**  
+### 🖼 **Phân bổ partition và leader**  
 - Mỗi topic được chia thành **nhiều partition**, mỗi partition có một leader replica.  
 - **Consumer chỉ đọc từ leader replica** của partition.
 - <img width="660" alt="image" src="https://github.com/user-attachments/assets/b8249149-1796-4c4b-b739-80d1e6670a4e" />
@@ -100,7 +100,7 @@ Consumer trong Kafka có lợi thế đặc biệt: **kiểm soát tốc độ t
 
 ---
 
-## 🌍 **Ảnh hưởng của số lượng partition**  
+### 🌍 **Ảnh hưởng của số lượng partition**  
 - **Nhiều partition** tăng khả năng xử lý song song nhưng đi kèm chi phí:  
   - **Tăng độ trễ** khi đồng bộ giữa các broker.  
   - **Tốn tài nguyên bộ nhớ** nếu consumer phải xử lý nhiều partition.  
@@ -108,7 +108,7 @@ Consumer trong Kafka có lợi thế đặc biệt: **kiểm soát tốc độ t
 
 ---
 
-## 📊 **Phân bổ consumer và partition**  
+### 📊 **Phân bổ consumer và partition**  
 - **Số lượng consumer không nên vượt quá số partition.**  
 - Hình 5.4 minh họa: Với 4 consumer và 3 partition, consumer dư thừa sẽ ở trạng thái chờ mà không xử lý dữ liệu.
   <img width="657" alt="image" src="https://github.com/user-attachments/assets/6dbd4774-d5c8-4202-92bb-a64c29b84234" />
@@ -116,7 +116,7 @@ Consumer trong Kafka có lợi thế đặc biệt: **kiểm soát tốc độ t
 
 ---
 
-## 📚 **Khả năng tương thích với Apache ZooKeeper**  
+### 📚 **Khả năng tương thích với Apache ZooKeeper**  
 - Kafka hiện không sử dụng **ZooKeeper** cho consumer.  
 - Trước đây, ZooKeeper được dùng để lưu trữ offset, nhưng hiện nay Kafka client đã loại bỏ phụ thuộc này.
 
@@ -170,9 +170,9 @@ Hình 5.8 nhấn mạnh consumer 1 có thể đọc từ 2 partition leader, tro
 Nếu heartbeat ngừng, điều này sẽ loại bỏ consumer khỏi group và kích hoạt cơ chế reblancing.
 
 ## 5.3.2 Partition assignment strategy (Chiến lược assign partition)
-Range: dùng alphabetical order (phần dư sẽ dồn qua consumer đầu tiên)
-RoundRobin: Phân phối tuần tự
-Sticky và CooperativeSticky: Mình sẽ k tìm hiểu ở đây
+* Range: dùng alphabetical order (phần dư sẽ dồn qua consumer đầu tiên)
+* RoundRobin: Phân phối tuần tự
+* Sticky và CooperativeSticky: Mình sẽ k tìm hiểu ở đây
 
 <img width="648" alt="image" src="https://github.com/user-attachments/assets/e62ea3d7-0101-4868-aec1-a9d9daff4f1a" />
 
