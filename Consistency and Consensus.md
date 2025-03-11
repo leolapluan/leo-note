@@ -2,31 +2,50 @@
 Focus on algo and protocol
 Chapter 8: packets can be lost, reordered, duplicated, or arbitrarily delayed in the network; clocks are approximate at best; and nodes can pause (e.g., due to garbage collection) or crash at any time.
 
-# **I. Consistency Guarantees 
+# **I. Consistency Guarantees**
 Replication Lag - timing issues
 Read-after-write consistency
 <img width="551" alt="image" src="https://github.com/user-attachments/assets/d4a2d7e4-bf33-4803-b769-a278b7541137" />
 
-#### **1. Nhất quán trong hệ thống phân tán có ý nghĩa gì?**
+#### **Nhất quán trong hệ thống phân tán có ý nghĩa gì?**
 
 - Khi một hệ thống được gọi là "nhất quán", điều đó có nghĩa gì về dữ liệu mà nó lưu trữ?
-- Sự khác biệt giữa **consistency** (trong CAP theorem) và **consistency** (trong ACID) là gì? Đồng bộ giữa các nút vs toàn vẹn dữ liệu trước và sau transaction
-#### **2. Các loại nhất quán khác nhau (strong, eventual, causal...) ảnh hưởng đến ứng dụng như thế nào?**
+- Sự khác biệt giữa **consistency** (trong CAP theorem) và **consistency** (trong ACID) là gì?
+  -> Đồng bộ giữa các nút vs toàn vẹn dữ liệu trước và sau transaction
+#### **Các loại nhất quán khác nhau (strong, eventual, causal...) ảnh hưởng đến ứng dụng như thế nào?**
 
-- **Strong consistency (Nhất quán mạnh)**: Nghĩa là tất cả các node nhìn thấy cùng một giá trị tại cùng một thời điểm. Khi nào điều này quan trọng?
-- **Eventual consistency (Nhất quán cuối cùng)**: Nếu không có cập nhật mới, tất cả các bản sao của dữ liệu sẽ hội tụ về cùng một giá trị theo thời gian. Khi nào có thể chấp nhận điều này?
-- **Causal consistency (Nhất quán nhân quả)**: Một thao tác chỉ có thể được nhìn thấy sau khi tất cả các thao tác trước đó mà nó phụ thuộc vào đã được áp dụng. Điều này giúp ích gì trong hệ thống thực tế?
-#### **3. Khi nào nên chọn nhất quán mạnh (strong consistency) thay vì nhất quán cuối cùng (eventual consistency)?**
+- **Strong consistency**: Nghĩa là tất cả các node nhìn thấy cùng một giá trị tại cùng một thời điểm. Khi nào điều này quan trọng?
+- **Eventual consistency**: Nếu không có cập nhật mới, tất cả các bản sao của dữ liệu sẽ hội tụ về cùng một giá trị theo thời gian. Khi nào có thể chấp nhận điều này? (Most replicated db provide at least)
+- **Causal consistency**: Một thao tác chỉ có thể được nhìn thấy sau khi tất cả các thao tác trước đó mà nó phụ thuộc vào đã được áp dụng. Điều này giúp ích gì trong hệ thống thực tế?
+#### **Khi nào nên chọn nhất quán mạnh (strong consistency) thay vì nhất quán cuối cùng (eventual consistency)?**
 
 - Có tình huống nào mà nhất quán mạnh là **bắt buộc** không? (Ví dụ: hệ thống tài chính, ngân hàng, giao dịch...)
 - Ngược lại, có ứng dụng nào có thể **chấp nhận** eventual consistency để cải thiện hiệu suất không?
 
-# **II. Linearizability (Tính tuyến tính)**
+# **II. Linearizability (One of strongest consistency models)**
+<img width="540" alt="image" src="https://github.com/user-attachments/assets/3f5feea8-9ab4-4f7f-8ad6-a7e36bd69e91" />
+<img width="551" alt="image" src="https://github.com/user-attachments/assets/af9de813-00ff-4b3d-a18d-790f838ca39e" />
+<img width="549" alt="image" src="https://github.com/user-attachments/assets/bbd8be26-cb3e-49da-8c18-6f2dd7567115" />
+
+Serializability
+
+Serializability is an isolation property of transactions, where every transaction
+may read and write multiple objects (rows, documents, records)—see “SingleObject and Multi-Object Operations” on page 228. It guarantees that transactions behave the same as if they had executed in some **serial order** (each
+transaction running to completion before the next transaction starts). It is okay
+for that serial order to be **different from the order** in which transactions were
+actually run 
+
+Linearizability
+
+Linearizability is a recency guarantee on reads and writes of a register (an individual object). It doesn’t group operations together into transactions, so it does
+not prevent problems such as write skew (see “Write Skew and Phantoms” on
+page 246), unless you take additional measures such as materializing conflicts
+(see “Materializing conflicts” on page 251).
 
 #### **1. Linearizability khác với Sequential Consistency như thế nào?**
 
 - Sequential consistency đảm bảo rằng tất cả các thao tác xảy ra theo **một thứ tự hợp lý**, nhưng không nhất thiết phải phản ánh thời gian thực. Linearizability có gì khác biệt?
-- Tại sao Linearizability đắt hơn Sequential Consistency về mặt hiệu năng?
+- Tại sao Linearizability kém hơn Sequential Consistency về mặt hiệu năng?
 
 #### **2. Điều kiện nào cần thiết để đảm bảo Linearizability?**
 
